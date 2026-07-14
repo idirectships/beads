@@ -13,6 +13,7 @@ internal/storage/dolt/concurrent_test.go::TestHighContentionStress
 internal/storage/dolt/concurrent_test.go::TestConcurrentWorkQueueDrain
 internal/storage/dolt/lease_test.go::TestConcurrentHeartbeatReclaimClose
 cmd/bd/prune_bench_test.go::TestPruneLargeFixture
+cmd/bd/import_chunking_test.go::TestImportChunkedConcurrentAvailability
 EOF
 )
 
