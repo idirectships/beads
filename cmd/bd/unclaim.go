@@ -37,9 +37,13 @@ Examples:
   bd unclaim bd-123 --if-assignee worker-7   # only if still held by worker-7`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if usesProxiedServer() {
+			return HandleErrorRespectJSON("unclaim is not supported in proxied-server mode")
+		}
 		CheckReadonly("unclaim")
 		reason, _ := cmd.Flags().GetString("reason")
 		ifAssignee, _ := cmd.Flags().GetString("if-assignee")
+		force, _ := cmd.Flags().GetBool("force")
 		ctx := rootCtx
 
 		unclaimedIssues := []*types.Issue{}
@@ -63,7 +67,7 @@ Examples:
 			if ifAssignee != "" {
 				unclaimErr = issueStore.UnclaimIssueIfAssignee(ctx, fullID, actor, ifAssignee)
 			} else {
-				unclaimErr = issueStore.UnclaimIssue(ctx, fullID, actor)
+				unclaimErr = issueStore.UnclaimIssue(ctx, fullID, actor, force)
 			}
 			if unclaimErr != nil {
 				fmt.Fprintf(os.Stderr, "Error unclaiming %s: %v\n", fullID, unclaimErr)
@@ -111,6 +115,8 @@ Examples:
 func init() {
 	unclaimCmd.Flags().StringP("reason", "r", "", "Reason for unclaiming")
 	unclaimCmd.Flags().String("if-assignee", "", "Only release if still assigned to this assignee (atomic compare-and-swap; exits nonzero without changing the issue when the holder differs)")
+	unclaimCmd.Flags().Bool("force", false, "Release the claim even if held by a different actor (admin/reaper use)")
+	unclaimCmd.MarkFlagsMutuallyExclusive("if-assignee", "force")
 	unclaimCmd.ValidArgsFunction = issueIDCompletion
 	rootCmd.AddCommand(unclaimCmd)
 }

@@ -331,13 +331,14 @@ func (s *DoltStore) ReclaimExpiredLeases(ctx context.Context, olderThan time.Dur
 	return reclaimed, nil
 }
 
-// UnclaimIssue atomically unclaims an issue by clearing the assignee
-// and resetting status to "open". Records an "unclaimed" event.
-// Delegates SQL work to issueops.UnclaimIssueInTx; handles Dolt-specific concerns
-// (DOLT_ADD/COMMIT).
-func (s *DoltStore) UnclaimIssue(ctx context.Context, id string, actor string) error {
+// UnclaimIssue atomically unclaims an issue by clearing the assignee, resetting
+// status to "open", clearing the lease columns and rewriting row_lock. Records
+// an "unclaimed" event. Only the current assignee may release its own claim
+// unless force is set (admin/reaper override). Delegates SQL work to
+// issueops.UnclaimIssueInTx; handles Dolt-specific concerns (DOLT_ADD/COMMIT).
+func (s *DoltStore) UnclaimIssue(ctx context.Context, id string, actor string, force bool) error {
 	return s.unclaimInTx(ctx, id, func(tx *sql.Tx) error {
-		return issueops.UnclaimIssueInTx(ctx, tx, id, actor)
+		return issueops.UnclaimIssueInTx(ctx, tx, id, actor, force)
 	})
 }
 
@@ -354,31 +355,27 @@ func (s *DoltStore) UnclaimIssueIfAssignee(ctx context.Context, id string, actor
 
 // unclaimInTx runs an issueops unclaim variant in a transaction and layers the
 // Dolt versioning (DOLT_ADD/COMMIT) on top.
+//
+// Wrapped in withRetryTx like the other claim-family writes so a concurrent
+// writer that loses Dolt's optimistic commit-time merge (1213/1205) is retried
+// rather than surfaced as a hard failure.
 func (s *DoltStore) unclaimInTx(ctx context.Context, id string, unclaim func(tx *sql.Tx) error) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
+	return s.withRetryTx(ctx, func(tx *sql.Tx) error {
+		if err := unclaim(tx); err != nil {
+			return err
+		}
 
-	if err := unclaim(tx); err != nil {
-		return err
-	}
-
-	// Dolt versioning for permanent issues.
-	for _, table := range []string{"issues", "events"} {
-		_, _ = tx.ExecContext(ctx, "CALL DOLT_ADD(?)", table)
-	}
-	commitMsg := fmt.Sprintf("bd: unclaim %s", id)
-	if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-m', ?, '--author', ?)",
-		commitMsg, s.commitAuthorString()); err != nil && !isDoltNothingToCommit(err) {
-		return fmt.Errorf("dolt commit: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return wrapTransactionError("commit unclaim issue", err)
-	}
-	return nil
+		// Dolt versioning for permanent issues.
+		for _, table := range []string{"issues", "events"} {
+			_, _ = tx.ExecContext(ctx, "CALL DOLT_ADD(?)", table)
+		}
+		commitMsg := fmt.Sprintf("bd: unclaim %s", id)
+		if _, err := tx.ExecContext(ctx, "CALL DOLT_COMMIT('-m', ?, '--author', ?)",
+			commitMsg, s.commitAuthorString()); err != nil && !isDoltNothingToCommit(err) {
+			return fmt.Errorf("dolt commit: %w", err)
+		}
+		return nil
+	})
 }
 
 // ReopenIssue reopens a closed issue, setting status to open and clearing
