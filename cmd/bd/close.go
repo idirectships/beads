@@ -35,6 +35,13 @@ the flags appear in the command line.`,
 	Args:          cobra.MinimumNArgs(0),
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		verifiedBy, _ := cmd.Flags().GetString("verified-by")
+		if cmd.Flags().Changed("verified-by") && strings.TrimSpace(verifiedBy) == "" {
+			return fmt.Errorf("--verified-by cannot be empty")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		CheckReadonly("close")
 
@@ -67,6 +74,7 @@ the flags appear in the command line.`,
 			return HandleErrorRespectJSON("%v", err)
 		}
 
+		verifiedBy, _ := cmd.Flags().GetString("verified-by")
 		force, _ := cmd.Flags().GetBool("force")
 		continueFlag, _ := cmd.Flags().GetBool("continue")
 		noAuto, _ := cmd.Flags().GetBool("no-auto")
@@ -159,6 +167,12 @@ the flags appear in the command line.`,
 			if err := activeStore.CloseIssue(ctx, id, reason, actor, session); err != nil {
 				fmt.Fprintf(os.Stderr, "Error closing %s: %v\n", id, err)
 				continue
+			}
+			if verifiedBy != "" {
+				if _, err := activeStore.AddIssueComment(ctx, id, actor, "verified-by: "+verifiedBy); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: closed %s but failed to record --verified-by: %v\n", id, err)
+					continue
+				}
 			}
 			mutatedStores[activeStore] = append(mutatedStores[activeStore], id)
 
@@ -317,6 +331,7 @@ the flags appear in the command line.`,
 
 func init() {
 	registerCloseReasonFlag(closeCmd)
+	closeCmd.Flags().String("verified-by", "", "record who/what verified this closure (command run + observed output)")
 	closeCmd.Flags().String("resolution", "", "Alias for --reason (Jira CLI convention)")
 	_ = closeCmd.Flags().MarkHidden("resolution") // Hidden alias for agent/CLI ergonomics
 	closeCmd.Flags().StringP("message", "m", "", "Alias for --reason (git commit convention)")
