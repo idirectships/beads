@@ -56,7 +56,8 @@ var (
 )
 
 type metadataShape struct {
-	database string
+	database  string
+	projectID string
 }
 
 type treeSnapshot struct {
@@ -194,7 +195,7 @@ func inspectWithHooks(project, targetVersion string, hooks inspectHooks) (result
 		return Result{}, err
 	}
 
-	return QualifiedResult(project, targetVersion, first.treeSHA256), nil
+	return QualifiedResult(project, targetVersion, shape.database, shape.projectID, first.treeSHA256), nil
 }
 
 func runningUnderWSL() (bool, error) {
@@ -508,7 +509,7 @@ func parseMetadata(data []byte) (metadataShape, error) {
 			}
 		}
 	}
-	return metadataShape{database: database}, nil
+	return metadataShape{database: database, projectID: projectID}, nil
 }
 
 func decodeUniqueObject(data []byte) (map[string]json.RawMessage, error) {
@@ -737,6 +738,11 @@ func checkDevice(actual, expected uint64) error {
 }
 
 func validateRequiredLayout(kinds map[string]byte, database string) error {
+	for _, routingArtifact := range []string{".env", "redirect"} {
+		if _, exists := kinds[routingArtifact]; exists {
+			return refuse(CodeSourceRoutingUnsupported, false, nil)
+		}
+	}
 	for _, mixed := range []string{"embeddeddolt", "beads.db", "proxieddb", "sqlite.db"} {
 		if _, exists := kinds[mixed]; exists {
 			return refuse(CodeMixedStorageLayout, false, nil)
