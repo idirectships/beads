@@ -2,7 +2,6 @@ package issueops
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -29,7 +28,7 @@ import (
 //   - Issue is claimed by a different actor and force is false (ErrNotOwner)
 //
 //nolint:gosec // G201: table names come from WispTableRouting (hardcoded constants)
-func UnclaimIssueInTx(ctx context.Context, tx *sql.Tx, id string, actor string, force bool) error {
+func UnclaimIssueInTx(ctx context.Context, tx DBTX, id string, actor string, force bool) error {
 	// Route to the correct table (issues/wisps) automatically, matching
 	// ClaimIssueInTx — a wisp claim lives in the wisp tables, so its release
 	// must update them too rather than no-op against the permanent issues table.
