@@ -37,7 +37,7 @@ func TestCloseVerifiedByCLI(t *testing.T) {
 		t.Fatalf("show text does not contain verification proof:\n%s", showText)
 	}
 
-	showJSON := runCloseVerifiedByCLI(t, dir, true, "show", id, "--json")
+	showJSON := runCloseVerifiedByCLI(t, dir, true, "show", id, "--json", "--include-comments")
 	issue := closeVerifiedByShownIssue(t, showJSON)
 	if issue["status"] != "closed" {
 		t.Fatalf("status = %v, want closed", issue["status"])
