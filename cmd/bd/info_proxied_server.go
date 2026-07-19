@@ -20,11 +20,9 @@ func runInfoProxiedServer(ctx context.Context, schemaFlag bool) error {
 		"mode":          "proxied-server",
 	}
 
-	page, err := uw.IssueUseCase().SearchIssues(ctx, "", types.IssueFilter{})
-	var issues []*types.Issue
+	count, err := uw.IssueUseCase().CountIssues(ctx, "", types.IssueFilter{SkipWisps: true})
 	if err == nil {
-		issues = page.Items
-		info["issue_count"] = len(issues)
+		info["issue_count"] = int(count)
 	}
 
 	configMap, err := uw.ConfigUseCase().GetAllConfig(ctx)
@@ -33,6 +31,11 @@ func runInfoProxiedServer(ctx context.Context, schemaFlag bool) error {
 	}
 
 	if schemaFlag {
+		page, err := uw.IssueUseCase().SearchIssues(ctx, "", types.IssueFilter{})
+		var issues []*types.Issue
+		if err == nil {
+			issues = page.Items
+		}
 		schemaVersion, err := uw.ConfigUseCase().GetLocalMetadata(ctx, "bd_version")
 		if err != nil {
 			schemaVersion = "unknown"

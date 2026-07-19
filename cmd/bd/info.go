@@ -66,9 +66,9 @@ Examples:
 		if store != nil {
 			ctx := rootCtx
 
-			issues, err := store.SearchIssues(ctx, "", types.IssueFilter{})
+			count, err := store.CountIssues(ctx, "", types.IssueFilter{SkipWisps: true})
 			if err == nil {
-				info["issue_count"] = len(issues)
+				info["issue_count"] = int(count)
 			}
 
 			configMap, err := store.GetAllConfig(ctx)
@@ -77,6 +77,10 @@ Examples:
 			}
 
 			if schemaFlag {
+				issues, err := store.SearchIssues(ctx, "", types.IssueFilter{})
+				if err != nil {
+					issues = nil
+				}
 				schemaVersion, err := store.GetLocalMetadata(ctx, "bd_version")
 				if err != nil {
 					schemaVersion = "unknown"

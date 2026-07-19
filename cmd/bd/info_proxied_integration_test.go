@@ -57,6 +57,36 @@ func TestProxiedServerInfo(t *testing.T) {
 		}
 	})
 
+	t.Run("info_count_excludes_wisps_and_matches_status", func(t *testing.T) {
+		bdProxiedCreate(t, bd, p.dir, "Info durable count probe", "--type", "task")
+		bdProxiedCreate(t, bd, p.dir, "Info ephemeral count probe", "--ephemeral")
+
+		info := infoJSON(t)
+		infoCount, ok := info["issue_count"].(float64)
+		if !ok {
+			t.Fatalf("info issue_count missing/not numeric: %v", info["issue_count"])
+		}
+		out, err := bdProxiedRun(t, bd, p.dir, "status", "--json")
+		if err != nil {
+			t.Fatalf("status --json: %v\n%s", err, out)
+		}
+		var status map[string]interface{}
+		if err := json.Unmarshal(out, &status); err != nil {
+			t.Fatalf("unmarshal status: %v\n%s", err, out)
+		}
+		summary, ok := status["summary"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("status summary missing: %v", status)
+		}
+		statusCount, ok := summary["total_issues"].(float64)
+		if !ok {
+			t.Fatalf("status total_issues missing/not numeric: %v", summary["total_issues"])
+		}
+		if infoCount != statusCount {
+			t.Errorf("info issue_count = %v, want durable status total_issues %v", infoCount, statusCount)
+		}
+	})
+
 	// ===== Default output (human-readable) =====
 
 	t.Run("info_default_text", func(t *testing.T) {

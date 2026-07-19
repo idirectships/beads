@@ -57,6 +57,32 @@ func TestEmbeddedInfo(t *testing.T) {
 		}
 	})
 
+	t.Run("info_count_excludes_wisps_and_matches_status", func(t *testing.T) {
+		bdCreate(t, bd, dir, "Info durable count probe", "--type", "task")
+		bdCreate(t, bd, dir, "Info ephemeral count probe", "--ephemeral")
+
+		var info map[string]interface{}
+		if err := json.Unmarshal([]byte(bdInfo(t, bd, dir, "--json")), &info); err != nil {
+			t.Fatalf("parse info JSON: %v", err)
+		}
+		infoCount, ok := info["issue_count"].(float64)
+		if !ok {
+			t.Fatalf("info issue_count missing/not numeric: %v", info["issue_count"])
+		}
+		status := bdStatusJSON(t, bd, dir, "--no-activity")
+		summary, ok := status["summary"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("status summary missing: %v", status)
+		}
+		statusCount, ok := summary["total_issues"].(float64)
+		if !ok {
+			t.Fatalf("status total_issues missing/not numeric: %v", summary["total_issues"])
+		}
+		if infoCount != statusCount {
+			t.Errorf("info issue_count = %v, want durable status total_issues %v", infoCount, statusCount)
+		}
+	})
+
 	// ===== Schema Flag =====
 
 	t.Run("info_schema", func(t *testing.T) {
