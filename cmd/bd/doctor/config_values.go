@@ -397,6 +397,13 @@ func checkDatabaseConfigValues(repoPath string) []string {
 	if backend != configfile.BackendDolt {
 		return issues // Non-Dolt backend, skip database config validation
 	}
+	if cfg != nil && cfg.GetDoltMode() == configfile.DoltModeEmbedded {
+		// The server-backed Dolt store below cannot validate an embedded
+		// workspace. Static metadata and YAML validation still ran above;
+		// opening a TCP store here would report a healthy embedded database as
+		// unreachable.
+		return issues
+	}
 
 	// Check if Dolt directory exists
 	doltPath := getDatabasePath(beadsDir)

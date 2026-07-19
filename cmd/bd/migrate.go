@@ -462,10 +462,19 @@ func handleInspect() error {
 
 	ctx := rootCtx
 
-	// Get current schema version
-	schemaVersion, err := store.GetLocalMetadata(ctx, "bd_version")
+	// bd_version is clone-local release metadata. It is not the Dolt storage
+	// schema version, so keep its diagnosis distinct from schema migration
+	// state.
+	releaseMetadataVersion, err := store.GetLocalMetadata(ctx, "bd_version")
+	releaseMetadataState := "current"
 	if err != nil {
-		schemaVersion = "unknown"
+		releaseMetadataVersion = "unknown"
+		releaseMetadataState = "unreadable"
+	} else if releaseMetadataVersion == "" {
+		releaseMetadataVersion = "missing"
+		releaseMetadataState = "missing"
+	} else if releaseMetadataVersion != Version {
+		releaseMetadataState = "outdated"
 	}
 
 	// Get issue count
@@ -499,15 +508,23 @@ func handleInspect() error {
 		}
 		warnings = append(warnings, fmt.Sprintf("issue_prefix config not set - may break commands after migration (detected: %s)", detectedPrefix))
 	}
-	if schemaVersion != Version {
-		warnings = append(warnings, fmt.Sprintf("schema version mismatch (current: %s, expected: %s)", schemaVersion, Version))
+	if releaseMetadataState == "missing" {
+		warnings = append(warnings, "release metadata missing: clone-local bd_version is empty; run 'bd migrate' to repair release metadata")
+	} else if releaseMetadataState == "unreadable" {
+		warnings = append(warnings, "release metadata unreadable: could not read clone-local bd_version")
+	} else if releaseMetadataState == "outdated" {
+		warnings = append(warnings, fmt.Sprintf("release metadata version mismatch (current: %s, expected: %s)", releaseMetadataVersion, Version))
 	}
 
 	// Output result
 	result := map[string]interface{}{
 		"registered_migrations": registeredMigrations,
 		"current_state": map[string]interface{}{
-			"schema_version": schemaVersion,
+			"release_metadata": map[string]string{
+				"key":     "bd_version",
+				"state":   releaseMetadataState,
+				"version": releaseMetadataVersion,
+			},
 			"issue_count":    issueCount,
 			"config":         configMap,
 			"missing_config": missingConfig,
@@ -522,7 +539,7 @@ func handleInspect() error {
 	}
 	fmt.Println("\nMigration Inspection")
 	fmt.Println("====================")
-	fmt.Printf("Schema Version: %s\n", schemaVersion)
+	fmt.Printf("Release Metadata Version: %s (%s)\n", releaseMetadataVersion, releaseMetadataState)
 	fmt.Printf("Issue Count: %d\n", issueCount)
 	fmt.Printf("Registered Migrations: %d\n", len(registeredMigrations))
 

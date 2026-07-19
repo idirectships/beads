@@ -160,8 +160,13 @@ func TestEmbeddedConfig(t *testing.T) {
 	})
 
 	// ===== Validate =====
-	// Note: config validate checks dolt server connectivity which doesn't
-	// apply to embedded mode, so we skip it here.
+
+	t.Run("config_validate_skips_server_connectivity", func(t *testing.T) {
+		out := bdConfig(t, bd, dir, "validate")
+		if strings.Contains(out, "failed to open Dolt store") {
+			t.Fatalf("embedded config validation must not attempt server-only connectivity: %s", out)
+		}
+	})
 
 	// ===== Error Cases =====
 

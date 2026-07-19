@@ -3,13 +3,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/steveyegge/beads/internal/configfile"
+	"github.com/steveyegge/beads/internal/storage/embeddeddolt"
 )
 
 // bdMigrate runs "bd migrate" with the given args and returns stdout.
@@ -107,6 +112,38 @@ func TestEmbeddedMigrate(t *testing.T) {
 		}
 		// --json flag may not produce JSON due to flag shadowing;
 		// verify command at least succeeds.
+	})
+
+	t.Run("migrate_inspect_reports_missing_release_metadata", func(t *testing.T) {
+		dir, _, _ := bdInit(t, bd, "--prefix", "mm")
+		beadsDir := filepath.Join(dir, ".beads")
+		cfg, err := configfile.Load(beadsDir)
+		if err != nil {
+			t.Fatalf("load embedded metadata: %v", err)
+		}
+		if cfg == nil {
+			t.Fatal("expected embedded metadata")
+		}
+
+		store, err := embeddeddolt.Open(context.Background(), beadsDir, cfg.DoltDatabase, "")
+		if err != nil {
+			t.Fatalf("open embedded store: %v", err)
+		}
+		t.Cleanup(func() { _ = store.Close() })
+		if err := store.SetLocalMetadata(context.Background(), "bd_version", ""); err != nil {
+			t.Fatalf("clear test bd_version: %v", err)
+		}
+
+		out := bdMigrate(t, bd, dir, "--inspect")
+		if !strings.Contains(out, "Release Metadata Version: missing (missing)") {
+			t.Fatalf("expected missing release metadata diagnostic, got: %s", out)
+		}
+		if !strings.Contains(out, "release metadata missing") {
+			t.Fatalf("expected release metadata warning, got: %s", out)
+		}
+		if strings.Contains(out, "schema version mismatch") {
+			t.Fatalf("missing bd_version must not be reported as a schema mismatch: %s", out)
+		}
 	})
 
 	// ===== --update-repo-id =====
