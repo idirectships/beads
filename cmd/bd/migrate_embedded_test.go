@@ -31,6 +31,21 @@ func bdMigrate(t *testing.T, bd, dir string, args ...string) string {
 	return stdout.String()
 }
 
+func parseMigrateJSON(t *testing.T, out string) map[string]interface{} {
+	t.Helper()
+	s := strings.TrimSpace(out)
+	start := strings.Index(s, "{")
+	if start < 0 {
+		t.Fatalf("expected JSON output, got: %s", s)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(s[start:]), &result); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, s)
+	}
+	return result
+}
+
 // extractNewRepoID pulls the fingerprint from the "  New: <hash>" line of
 // `bd migrate --update-repo-id --dry-run` output.
 func extractNewRepoID(t *testing.T, out string) string {
@@ -101,17 +116,31 @@ func TestEmbeddedMigrate(t *testing.T) {
 
 	t.Run("migrate_inspect_json", func(t *testing.T) {
 		dir, _, _ := bdInit(t, bd, "--prefix", "mj")
-		out := bdMigrate(t, bd, dir, "--inspect", "--json")
-		s := strings.TrimSpace(out)
-		start := strings.Index(s, "{")
-		if start >= 0 {
-			var m map[string]interface{}
-			if err := json.Unmarshal([]byte(s[start:]), &m); err != nil {
-				t.Errorf("invalid JSON: %v\n%s", err, s)
-			}
+		result := parseMigrateJSON(t, bdMigrate(t, bd, dir, "--inspect", "--json"))
+		if got := result["schema_version"]; got != float64(JSONSchemaVersion) {
+			t.Fatalf("schema_version = %v, want %d", got, JSONSchemaVersion)
 		}
-		// --json flag may not produce JSON due to flag shadowing;
-		// verify command at least succeeds.
+		currentState, ok := result["current_state"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("current_state missing/not object: %v", result["current_state"])
+		}
+		legacyVersion, ok := currentState["schema_version"].(string)
+		if !ok {
+			t.Fatalf("deprecated current_state.schema_version missing/not string: %v", currentState["schema_version"])
+		}
+		releaseMetadata, ok := currentState["release_metadata"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("current_state.release_metadata missing/not object: %v", currentState["release_metadata"])
+		}
+		if got := releaseMetadata["key"]; got != "bd_version" {
+			t.Fatalf("release_metadata.key = %v, want bd_version", got)
+		}
+		if got := releaseMetadata["state"]; got != "current" {
+			t.Fatalf("release_metadata.state = %v, want current", got)
+		}
+		if got := releaseMetadata["version"]; got != legacyVersion {
+			t.Fatalf("release_metadata.version = %v, deprecated alias = %q", got, legacyVersion)
+		}
 	})
 
 	t.Run("migrate_inspect_reports_missing_release_metadata", func(t *testing.T) {
@@ -143,6 +172,25 @@ func TestEmbeddedMigrate(t *testing.T) {
 		}
 		if strings.Contains(out, "schema version mismatch") {
 			t.Fatalf("missing bd_version must not be reported as a schema mismatch: %s", out)
+		}
+
+		result := parseMigrateJSON(t, bdMigrate(t, bd, dir, "--inspect", "--json"))
+		currentState, ok := result["current_state"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("current_state missing/not object: %v", result["current_state"])
+		}
+		if got := currentState["schema_version"]; got != "" {
+			t.Fatalf("deprecated schema_version = %v, want historical empty string", got)
+		}
+		releaseMetadata, ok := currentState["release_metadata"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("release_metadata missing/not object: %v", currentState["release_metadata"])
+		}
+		if got := releaseMetadata["state"]; got != "missing" {
+			t.Fatalf("release_metadata.state = %v, want missing", got)
+		}
+		if got := releaseMetadata["version"]; got != "missing" {
+			t.Fatalf("release_metadata.version = %v, want missing", got)
 		}
 	})
 

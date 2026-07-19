@@ -701,8 +701,8 @@ async def beads_inspect_migration() -> dict[str, Any]:
 
     AI agents should:
     1. Review registered_migrations to understand what will run
-    2. Check warnings array for issues (missing config, version mismatch)
-    3. Verify missing_config is empty before migrating
+    2. Check warnings for missing or outdated clone-local release metadata
+    3. Verify current_state.missing_config is empty before migrating
     4. Check invariants_to_check to understand safety guarantees
 
     Returns migration plan, current db state, warnings, and invariants.

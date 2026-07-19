@@ -466,8 +466,10 @@ func handleInspect() error {
 	// schema version, so keep its diagnosis distinct from schema migration
 	// state.
 	releaseMetadataVersion, err := store.GetLocalMetadata(ctx, "bd_version")
+	legacySchemaVersion := releaseMetadataVersion
 	releaseMetadataState := "current"
 	if err != nil {
+		legacySchemaVersion = "unknown"
 		releaseMetadataVersion = "unknown"
 		releaseMetadataState = "unreadable"
 	} else if releaseMetadataVersion == "" {
@@ -520,6 +522,9 @@ func handleInspect() error {
 	result := map[string]interface{}{
 		"registered_migrations": registeredMigrations,
 		"current_state": map[string]interface{}{
+			// Deprecated v1 compatibility alias. This is clone-local
+			// bd_version, not the Dolt storage schema version.
+			"schema_version": legacySchemaVersion,
 			"release_metadata": map[string]string{
 				"key":     "bd_version",
 				"state":   releaseMetadataState,
@@ -821,7 +826,6 @@ func init() {
 	migrateCmd.Flags().Bool("dry-run", false, "Show what would be done without making changes")
 	migrateCmd.Flags().Bool("update-repo-id", false, "Update repository ID (use after changing git remote)")
 	migrateCmd.Flags().Bool("inspect", false, "Show migration plan and database state for AI agent analysis")
-	migrateCmd.Flags().BoolVar(&jsonOutput, "json", false, "Output migration statistics in JSON format")
 	// --force bypasses the remote-migrate gate (#4259) as the single designated
 	// migrator. No -f shorthand: deliberate typing for a fork-risk bypass.
 	migrateCmd.Flags().Bool("force", false, "Bypass the remote-migrate gate as the single designated migrator (equivalent to BD_ALLOW_REMOTE_MIGRATE=1)")

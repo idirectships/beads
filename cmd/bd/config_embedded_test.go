@@ -162,6 +162,10 @@ func TestEmbeddedConfig(t *testing.T) {
 	// ===== Validate =====
 
 	t.Run("config_validate_skips_server_connectivity", func(t *testing.T) {
+		// Validation separately requires a syntactically valid federation
+		// remote. Set one so this regression isolates the embedded-vs-server
+		// connectivity behavior it is intended to cover.
+		bdConfig(t, bd, dir, "set", "federation.remote", "dolthub://example/beads")
 		out := bdConfig(t, bd, dir, "validate")
 		if strings.Contains(out, "failed to open Dolt store") {
 			t.Fatalf("embedded config validation must not attempt server-only connectivity: %s", out)
