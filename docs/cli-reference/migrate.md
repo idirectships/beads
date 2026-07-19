@@ -40,7 +40,6 @@ bd migrate [command]
       --dry-run          Show what would be done without making changes
       --force            Bypass the remote-migrate gate as the single designated migrator (equivalent to BD_ALLOW_REMOTE_MIGRATE=1)
       --inspect          Show migration plan and database state for AI agent analysis
-      --json             Output migration statistics in JSON format
       --update-repo-id   Update repository ID (use after changing git remote)
       --yes              Auto-confirm prompts
 ```
