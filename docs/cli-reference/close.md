@@ -34,4 +34,5 @@ bd close [id...] [flags]
       --reason-file string   Read close reason from file (use - for stdin)
       --session string       Claude Code session ID (or set CLAUDE_SESSION_ID env var)
       --suggest-next         Show newly unblocked issues after closing
+      --verified-by string   record who/what verified this closure (command run + observed output)
 ```

@@ -3,10 +3,11 @@ title: JSON Output Schema Contract
 description: The stable JSON output contract for bd --json commands, covering the schema_version envelope, per-command fields, and consumer guidelines.
 ---
 
-Last reviewed: 2026-05-08
+Last reviewed: 2026-07-19
 
 Freshness source: `cmd/bd/output.go`, `cmd/bd/errors.go`, and
-`cmd/bd/protocol/json_contract_test.go`.
+`cmd/bd/protocol/json_contract_test.go`, plus `cmd/bd/migrate.go` and
+`cmd/bd/migrate_embedded_test.go` for migration-inspection output.
 
 All `bd` commands that support `--json` output can wrap their response in
 a uniform envelope by setting `BD_JSON_ENVELOPE=1`. This will become the
@@ -58,7 +59,7 @@ bd show beads-abc --json | jq '.schema_version'
 Current version: **1**
 
 The `schema_version` field is an integer that increments when:
-- Fields are added, renamed, or removed
+- Existing fields are renamed or removed
 - Output structure changes (e.g., nesting depth)
 - Field types change (e.g., string to integer)
 
@@ -136,6 +137,38 @@ Errors with `--json` active emit JSON to stderr:
 ```
 
 ## Field Contracts by Command
+
+### `bd migrate --inspect --json`
+
+Migration inspection reports clone-local release metadata separately from the
+Dolt storage migration state:
+
+```json
+{
+  "schema_version": 1,
+  "current_state": {
+    "schema_version": "1.1.0",
+    "release_metadata": {
+      "key": "bd_version",
+      "state": "current",
+      "version": "1.1.0"
+    },
+    "db_exists": true
+  }
+}
+```
+
+`current_state.release_metadata` is canonical. Its `state` is `current`,
+`outdated`, `missing`, or `unreadable`; `version` contains the clone-local
+release value or the corresponding `missing`/`unknown` diagnostic value.
+
+`current_state.schema_version` is a deprecated v1 compatibility alias for the
+historical clone-local `bd_version` value. Despite its name, it is not the Dolt
+storage schema version. When `bd_version` exists but is empty, the alias remains
+the historical empty string while `release_metadata` reports
+`{"state":"missing","version":"missing"}`. When no database exists, the
+existing `current_state.schema_version: "missing"` response is retained and
+`release_metadata` is absent.
 
 ### bd list --json
 

@@ -390,6 +390,7 @@ bd close [id...] [flags]
       --reason-file string   Read close reason from file (use - for stdin)
       --session string       Claude Code session ID (or set CLAUDE_SESSION_ID env var)
       --suggest-next         Show newly unblocked issues after closing
+      --verified-by string   record who/what verified this closure (command run + observed output)
 ```
 
 ### bd comment
@@ -639,9 +640,11 @@ Gate types:
   timer   - Expires after timeout (Phase 2)
   gh:run  - Waits for GitHub workflow (Phase 3)
   gh:pr   - Waits for PR merge (Phase 3)
-  bead    - Waits for cross-rig bead to close (Phase 4)
+  bead    - Waits for another bead to close (Phase 4)
 
-For bead gates, await_id format is &lt;rig&gt;:&lt;bead-id&gt; (e.g., "other-project:op-abc123").
+For bead gates, await_id is a bead ID in this rig's database (e.g., "bd-abc123").
+The historical cross-rig form &lt;rig&gt;:&lt;bead-id&gt; can no longer be evaluated
+(multi-rig routing removed) and stays pending until resolved manually.
 
 Examples:
   bd gate list           # Show all open gates
@@ -4246,7 +4249,6 @@ bd migrate [command]
       --dry-run          Show what would be done without making changes
       --force            Bypass the remote-migrate gate as the single designated migrator (equivalent to BD_ALLOW_REMOTE_MIGRATE=1)
       --inspect          Show migration plan and database state for AI agent analysis
-      --json             Output migration statistics in JSON format
       --update-repo-id   Update repository ID (use after changing git remote)
       --yes              Auto-confirm prompts
 ```
