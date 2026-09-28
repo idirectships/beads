@@ -140,3 +140,37 @@ func closeVerifiedByShownIssue(t *testing.T, output string) map[string]interface
 	}
 	return issues[0]
 }
+
+func TestIncludeCommentsFlag(t *testing.T) {
+	dir := t.TempDir()
+	runCloseVerifiedByCLI(t, dir, true, "init", "--prefix", "test", "--quiet")
+
+	createOut := runCloseVerifiedByCLI(t, dir, true, "create", "Include comments", "--json")
+	id := closeVerifiedByIssueID(t, createOut)
+	runCloseVerifiedByCLI(t, dir, true, "close", id, "--verified-by", "test proof string")
+
+	// Without the flag, JSON output must not expose comment bodies.
+	issue := closeVerifiedByShownIssue(t, runCloseVerifiedByCLI(t, dir, true, "show", id, "--json"))
+	if issue["status"] != "closed" {
+		t.Fatalf("show without --include-comments status = %v, want closed", issue["status"])
+	}
+	if value, exists := issue["comments"]; exists {
+		comments, ok := value.([]interface{})
+		if !ok || len(comments) != 0 {
+			t.Fatalf("show without --include-comments comments = %#v, want absent or empty array", value)
+		}
+	}
+
+	issue = closeVerifiedByShownIssue(t, runCloseVerifiedByCLI(t, dir, true, "show", id, "--json", "--include-comments"))
+	if issue["status"] != "closed" {
+		t.Fatalf("show with --include-comments status = %v, want closed", issue["status"])
+	}
+	comments, ok := issue["comments"].([]interface{})
+	if !ok || len(comments) != 1 {
+		t.Fatalf("show with --include-comments comments = %#v, want exactly one comment", issue["comments"])
+	}
+	comment, ok := comments[0].(map[string]interface{})
+	if !ok || comment["text"] != "verified-by: test proof string" {
+		t.Fatalf("verification comment = %#v, want text %q", comments[0], "verified-by: test proof string")
+	}
+}
